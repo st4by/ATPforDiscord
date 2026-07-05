@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 import yt_dlp
-from gallery_dl import config, job
+from gallery_dl import config, exception, job
 from yt_dlp.extractor.tiktok import TikTokIE, TikTokUserIE
 from yt_dlp.utils import (
     ExtractorError,
@@ -31,11 +31,24 @@ logger = logging.getLogger(__name__)
 config.load()
 config.set((), "directory", "")
 config.set(("extractor",), "base-directory", str(SLIDESHOW_TMP_DIR))
+config.set(("extractor", "tiktok"), "videos", False)
 config.set(
     ("extractor", "tiktok"),
     "filename",
     {"extension == 'mp3'": "audio.mp3", "": "{num}.{extension}"},
 )
+
+
+class NetworkError(Exception):
+    """Исключение при сетевых ошибках."""
+
+    pass
+
+
+class NotASlideshow(Exception):
+    """Пост TikTok не является слайдшоу."""
+
+    pass
 
 
 class YtDlpLogger:
@@ -65,10 +78,16 @@ class YtDlpLogger:
         logger.error(msg)
 
 
-class NetworkError(Exception):
-    """Исключение при сетевых ошибках."""
+class SlideshowDownloadJob(job.DownloadJob):
+    post_type: str | None = None
+    post_metadata: dict | None = None
 
-    pass
+    def handle_directory(self, kwdict):
+        self.post_type = kwdict.get("post_type")
+        self.post_metadata = kwdict
+        if self.post_type != "image":
+            raise exception.AbortExtraction("Video is not a slideshow")
+        super().handle_directory(kwdict)
 
 
 COOKIE_ERRORS = [
@@ -431,8 +450,7 @@ def download_video(video: Video) -> VideoInfo | None:
             always_retry=video.status == VideoStatus.NEW,
         )
         if info["format_id"] == "audio":
-            success = download_slideshow(video.id)
-            if not success:
+            if not download_slideshow(video.id):
                 return None
             video_type = VideoType.SLIDESHOW
         else:
@@ -500,7 +518,14 @@ def download_slideshow(video_id: str) -> bool:
 
     # Загрузка изображений и аудио
     try:
-        job.DownloadJob(f"https://www.tiktok.com/@/photo/{video_id}").run()
+        download_job = SlideshowDownloadJob(f"https://www.tiktok.com/@/video/{video_id}")
+        status = download_job.run()
+        if download_job.post_type == "video":
+            raise NotASlideshow("Video is not a slideshow")
+        if status != 0:
+            return False
+    except NotASlideshow:
+        raise
     except Exception as e:
         logger.error("Error downloading images for the slideshow: %s", e)
         return False

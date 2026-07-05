@@ -526,14 +526,34 @@ def test_download_slideshow_returns_false_on_job_error(monkeypatch: pytest.Monke
     monkeypatch.setattr(tiktok, "temp_files_cleanup", lambda: None)
 
     class FakeJob:
+        post_type = "image"
+
         def __init__(self, _url: str):
             pass
 
         def run(self):
             raise RuntimeError("fail")
 
-    monkeypatch.setattr(tiktok.job, "DownloadJob", FakeJob)
+    monkeypatch.setattr(tiktok, "SlideshowDownloadJob", FakeJob)
     assert tiktok.download_slideshow("1") is False
+
+
+@pytest.mark.unit
+def test_download_slideshow_raises_not_a_slideshow(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(tiktok, "temp_files_cleanup", lambda: None)
+
+    class FakeJob:
+        post_type = "video"
+
+        def __init__(self, _url: str):
+            pass
+
+        def run(self):
+            return 4
+
+    monkeypatch.setattr(tiktok, "SlideshowDownloadJob", FakeJob)
+    with pytest.raises(tiktok.NotASlideshow):
+        tiktok.download_slideshow("1")
 
 
 @pytest.mark.unit
@@ -541,12 +561,14 @@ def test_download_slideshow_returns_render_result(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(tiktok, "temp_files_cleanup", lambda: None)
 
     class FakeJob:
+        post_type = "image"
+
         def __init__(self, _url: str):
             pass
 
         def run(self):
-            return None
+            return 0
 
-    monkeypatch.setattr(tiktok.job, "DownloadJob", FakeJob)
+    monkeypatch.setattr(tiktok, "SlideshowDownloadJob", FakeJob)
     monkeypatch.setattr(tiktok, "render_slideshow", lambda _id: True)
     assert tiktok.download_slideshow("1") is True
