@@ -92,7 +92,9 @@ class SlideshowDownloadJob(job.DownloadJob):
 
 COOKIE_ERRORS = [
     "Log in for access",
+    "Log into an account",
     "status code 10203",
+    "status code 10231",
 ]
 NETWORK_ERRORS = [
     "Read timed out",
