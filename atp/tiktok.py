@@ -6,6 +6,7 @@ import urllib.parse
 from datetime import datetime
 from pathlib import Path
 
+import os
 import yt_dlp
 from gallery_dl import config, exception, job
 from yt_dlp.extractor.tiktok import TikTokIE, TikTokUserIE
@@ -120,8 +121,11 @@ class TikTokUserBaseIE(TikTokUserIE):
 
     def _extract_universal_data(self, url, display_id=None, fatal=True):
         def get_webpage(note):
+            # Allow disabling yt-dlp impersonation via env var when the
+            # impersonation extras are not installed or cause issues.
+            disable_imp = os.getenv("DISABLE_IMPERSONATION", "false").lower() == "true"
             res = self._download_webpage_handle(
-                url, display_id, note, fatal=fatal, impersonate=True
+                url, display_id, note, fatal=fatal, impersonate=not disable_imp
             )
             if res is False:
                 return False
@@ -339,8 +343,18 @@ def yt_dlp_request(
     :raises NetworkError: При сетевых ошибках
     :raises Exception: При других ошибках
     """
-    if USER_AGENT:
-        ydl_opts["http_headers"] = {"User-Agent": USER_AGENT}
+    # Ensure a User-Agent is always provided to avoid yt-dlp requesting
+    # impersonation support. Prefer explicit USER_AGENT from settings,
+    # otherwise use a modern fallback to reduce the chance of blocking.
+    ua = USER_AGENT or (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+    )
+    if not USER_AGENT:
+        logger.info("No USER_AGENT set in settings; using fallback user-agent to avoid impersonation")
+    ydl_opts["http_headers"] = {"User-Agent": ua}
+    # Set a socket timeout to avoid long hangs on slow/blocked connections
+    ydl_opts.setdefault("socket_timeout", 15)
     ydl_opts["logger"] = YtDlpLogger(**ydl_opts)
 
     attempt = 0

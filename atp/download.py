@@ -6,6 +6,8 @@ from atp.database import get_db_session
 from atp.models import VideoStatus
 from atp.settings import HOPE_MODE
 from atp.tiktok import download_video
+from atp.stop import stop_event
+from atp.settings import DOWNLOAD_DELAY
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +21,13 @@ def download_new_videos() -> None:
             return
 
         videos = crud.get_videos(db, status=[VideoStatus.NEW])
+        # Skip videos that were added before this process started (backlog).
+        try:
+            from atp.settings import STARTUP_TIME
+
+            videos = [v for v in videos if (v.created_at is None or v.created_at >= STARTUP_TIME)]
+        except Exception:
+            pass
         if HOPE_MODE:
             logger.info(
                 "HOPE_MODE is enabled, will try to download failed videos. This may take a while."
@@ -31,9 +40,17 @@ def download_new_videos() -> None:
 
         success_count = 0
         for i, video in enumerate(videos):
+            if stop_event.is_set():
+                logger.info("Stop requested, aborting download loop")
+                break
             logger.info("Downloading video %s/%s: %s", i + 1, len(videos), video.id)
 
             if not (result := download_video(video)):
+                # Respect DOWNLOAD_DELAY even when a download failed/skipped
+                try:
+                    stop_event.wait(DOWNLOAD_DELAY)
+                except Exception:
+                    pass
                 continue
             success = not result.deleted_reason
             status = VideoStatus.SUCCESS if success else VideoStatus.FAILED
@@ -52,6 +69,11 @@ def download_new_videos() -> None:
                 logger.info("Successfully downloaded video %s", video.id)
             else:
                 logger.warning("Failed to download video %s", video.id)
+            # Wait between downloads to reduce request rate and allow graceful stop
+            try:
+                stop_event.wait(DOWNLOAD_DELAY)
+            except Exception:
+                pass
 
         logger.info("Downloaded %s/%s videos", success_count, len(videos))
         if new_left := crud.get_videos(db, status=[VideoStatus.NEW]):

@@ -105,7 +105,8 @@ def process_download_and_send(video_id: str) -> None:
             return
 
         try:
-            caption = f"{video.author or ''} — {video.name or video_id}"
+            # Only include author (do not copy description/text from the video)
+            caption = video.author or ""
             send_media(caption, target)
             crud.update_video(db, video, sent_to_discord=True)
             logger.info("Sent video %s to Discord", video_id)

@@ -5,6 +5,7 @@ import shutil
 import sys
 import tempfile
 import time
+from datetime import datetime
 from pathlib import Path
 import stat
 
@@ -375,6 +376,13 @@ HOPE_MODE: bool = os.getenv("HOPE_MODE", "false").lower() == "true"
 # Количество попыток при скачивании/проверке видео
 MAX_RETRIES: int = int(os.getenv("MAX_RETRIES", "3"))
 
+# Задержка между последовательными скачиваниями (в секундах)
+# По умолчанию 10 секунд, чтобы избежать блокировок при массовом скачивании.
+DOWNLOAD_DELAY: int = int(os.getenv("DOWNLOAD_DELAY", "10"))
+
+# По умолчанию не обрабатывать бэклог записей при старте процесса.
+# Установите PROCESS_BACKLOG_ON_STARTUP=true в settings.conf, чтобы включить.
+PROCESS_BACKLOG_ON_STARTUP: bool = os.getenv("PROCESS_BACKLOG_ON_STARTUP", "false").lower() == "true"
 # Настройки прокси и user-agent
 PROXY: str = os.getenv("PROXY", "")
 if PROXY:
@@ -438,3 +446,7 @@ os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 
 check_dir_permission(get_config_dir())
 check_dir_permission(Path(DOWNLOADS_DIR))
+
+# Время старта процесса — используется чтобы игнорировать бэклог записей,
+# созданных до запуска приложения.
+STARTUP_TIME: datetime = datetime.utcnow()
