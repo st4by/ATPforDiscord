@@ -24,6 +24,7 @@ EXPECTED_VIDEO_COLUMNS = {
     "author",
     "message_id",
     "deleted_reason",
+    "sent_to_discord",
 }
 
 

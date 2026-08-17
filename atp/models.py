@@ -59,6 +59,7 @@ class Video(Base):
     last_checked: datetime | None = Column(DateTime, nullable=True)
     message_id: int | None = Column(Integer, nullable=True)
     deleted_reason: str | None = Column(String, nullable=True)
+    sent_to_discord: bool = Column(Boolean, nullable=False, default=False)
 
     def __repr__(self) -> str:
         """Строковое представление объекта Video.

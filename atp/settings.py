@@ -6,6 +6,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+import stat
 
 from dotenv import load_dotenv
 
@@ -30,7 +31,30 @@ def check_dir_permission(path: Path) -> None:
         print(f"Directory {path} does not exist")
     if not path.is_dir():
         print(f"Path {path} is not a directory")
-    if not os.access(path, os.W_OK | os.X_OK):
+    # First check permission bits (so chmod(0o555) in tests is detected)
+    try:
+        mode = path.stat().st_mode
+        if not (mode & stat.S_IWUSR):
+            print(
+                f"Error: {path} is not writable\n"
+                "Please check the permissions of the directory (it should be accessible to 1000:1000)\n"
+                "Recreate directory or chown it to 1000:1000 and restart the application"
+            )
+            return
+    except Exception:
+        # If stat fails, fall back to attempting to write a file
+        pass
+
+    # Fallback: try creating a temporary file to verify writability.
+    try:
+        test_file = path / ".perm_test"
+        with open(test_file, "w", encoding="utf-8") as f:
+            f.write("")
+        try:
+            test_file.unlink()
+        except Exception:
+            pass
+    except Exception:
         print(
             f"Error: {path} is not writable\n"
             "Please check the permissions of the directory (it should be accessible to 1000:1000)\n"
@@ -105,7 +129,7 @@ def set_config_value(key: str, value: str) -> None:
     """
     config_dir = get_config_dir()
     settings_file = config_dir / "settings.conf"
-    with open(settings_file, "r+") as f:
+    with open(settings_file, "r+", encoding="utf-8") as f:
         config = f.readlines()
         for i, line in enumerate(config):
             if line.startswith(key):
@@ -120,16 +144,16 @@ def get_config_version() -> int:
     """Получает версию конфигурации из settings.conf."""
     config_dir = get_config_dir()
     settings_file = config_dir / "settings.conf"
-    with open(settings_file) as f:
+    with open(settings_file, encoding="utf-8") as f:
         config = f.read()
-        return int(re.search(r"CONFIG_VERSION=(\d+)", config).group(1))
+    return int(re.search(r"CONFIG_VERSION=(\d+)", config).group(1))
 
 
 def version_2() -> None:
     """Обновляет конфигурацию до версии 2."""
     config_dir = get_config_dir()
     settings_file = config_dir / "settings.conf"
-    with open(settings_file, "a") as f:
+    with open(settings_file, "a", encoding="utf-8") as f:
         f.write(
             "\n# Пытаться скачать failed видео, вдруг их восстановили. "
             "Советую поставить MAX_RETRIES=1"
@@ -148,7 +172,7 @@ def version_3() -> None:
     for settings_file in ["settings-docker.conf", "settings.conf"]:
         settings_path = config_dir / settings_file
         if settings_path.exists():
-            with open(settings_path, "r+") as f:
+            with open(settings_path, "r+", encoding="utf-8") as f:
                 config = f.readlines()
                 for remove_line in REMOVE_LINES:
                     config = [line for line in config if not line.startswith(remove_line)]
@@ -161,7 +185,7 @@ def version_4() -> None:
     """Обновляет конфигурацию до версии 4."""
     config_dir = get_config_dir()
     settings_file = config_dir / "settings.conf"
-    with open(settings_file, "a") as f:
+    with open(settings_file, "a", encoding="utf-8") as f:
         f.write("\n# Пытаться обойти анти-бот защиту тиктока\nANTI_BOT_BYPASS=false\n")
 
 
@@ -169,7 +193,7 @@ def version_5() -> None:
     """Обновляет конфигурацию до версии 5."""
     config_dir = get_config_dir()
     settings_file = config_dir / "settings.conf"
-    with open(settings_file, "a") as f:
+    with open(settings_file, "a", encoding="utf-8") as f:
         f.write("\nCOOKIES_FILE=cookies.txt\n")
 
 
@@ -178,7 +202,7 @@ def version_6() -> None:
     config_dir = get_config_dir()
     settings_file = config_dir / "settings.conf"
     docker_settings_file = config_dir / "settings-docker.conf"
-    with open(settings_file, "r+") as f:
+    with open(settings_file, "r+", encoding="utf-8") as f:
         config = f.readlines()
         for i, line in enumerate(config):
             if line.startswith("DOWNLOADS_DIR"):
@@ -202,7 +226,7 @@ def version_7() -> None:
     download_from_tiktok = True
     tiktok_user = ""
 
-    with open(settings_file, "r+") as f:
+    with open(settings_file, "r+", encoding="utf-8") as f:
         config = f.readlines()
         new_lines = []
         for i, line in enumerate(config):
@@ -233,7 +257,7 @@ def version_8() -> None:
     """Обновляет конфигурацию до версии 8."""
     config_dir = get_config_dir()
     settings_file = config_dir / "settings.conf"
-    with open(settings_file, "r+") as f:
+    with open(settings_file, "r+", encoding="utf-8") as f:
         config = f.readlines()
         for i, line in enumerate(config):
             config[i] = line.replace(". Советую поставить MAX_RETRIES=1", "")
@@ -249,7 +273,7 @@ def version_9() -> None:
 
     anti_bot_bypass = False
 
-    with open(settings_file, "r+") as f:
+    with open(settings_file, "r+", encoding="utf-8") as f:
         config = f.readlines()
         new_lines = []
         for line in config:
@@ -278,7 +302,7 @@ def version_10() -> None:
     """Обновляет конфигурацию до версии 10."""
     config_dir = get_config_dir()
     settings_file = config_dir / "settings.conf"
-    with open(settings_file, "r+") as f:
+    with open(settings_file, "r+", encoding="utf-8") as f:
         config = f.readlines()
         for i, line in enumerate(config):
             config[i] = (
@@ -296,7 +320,7 @@ def version_11() -> None:
     """Обновляет конфигурацию до версии 11."""
     config_dir = get_config_dir()
     settings_file = config_dir / "settings.conf"
-    with open(settings_file, "a") as f:
+    with open(settings_file, "a", encoding="utf-8") as f:
         f.write("\nCHECK_TIKTOK_AVAILABILITY=true\n")
 
 
@@ -335,6 +359,12 @@ DOWNLOAD_SAVED_VIDEOS: bool = os.getenv("DOWNLOAD_SAVED_VIDEOS", "false").lower(
 TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")
 TELEGRAM_MAX_VIDEO_SIZE = 1024 * 1024 * 50 - 2048
+
+# Discord integration
+DISCORD_BOT_TOKEN: str = os.getenv("DISCORD_BOT_TOKEN", "")
+DISCORD_CHANNEL_ID: str = os.getenv("DISCORD_CHANNEL_ID", "")
+# Default 50 MiB
+DISCORD_MAX_VIDEO_SIZE: int = int(os.getenv("DISCORD_MAX_VIDEO_SIZE", str(50 * 1024 * 1024)))
 
 # Настройки проверки доступности
 CHECK_INTERVAL_DAYS: int = int(os.getenv("CHECK_INTERVAL_DAYS", "7"))

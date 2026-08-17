@@ -28,6 +28,8 @@ from atp.settings import (
     TIKTOK_USER,
 )
 from atp.tiktok import get_user_liked_videos, get_user_saved_videos
+from threading import Thread
+from atp.discord import process_download_and_send
 
 logger = logging.getLogger(__name__)
 
@@ -121,9 +123,15 @@ def import_from_file() -> None:
             if videos_to_add:
                 crud.add_videos_bulk(db, videos_to_add)
                 logger.info("Added %s videos", len(videos_to_add))
+                for v in videos_to_add:
+                    if v.saved:
+                        Thread(target=process_download_and_send, args=(v.id,), daemon=True).start()
             if videos_to_update:
                 crud.update_video_sources_bulk(db, videos_to_update)
                 logger.info("Updated sources for %s videos", len(videos_to_update))
+                for v in videos_to_update:
+                    if v.saved:
+                        Thread(target=process_download_and_send, args=(v.id,), daemon=True).start()
         except Exception as e:
             logger.exception("Error importing videos: %s", e)
 
